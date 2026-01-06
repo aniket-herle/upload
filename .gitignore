@@ -1,0 +1,19 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Gradle
+.gradle/
+build/
+
+# Gradle local cache / locks
+**/buildOutputCleanup/
+**/*.lock
+**/executionHistory/
+**/fileHashes/
+**/checksums/
+
+# OS
+.DS_Store
+Thumbs.db
