@@ -1,11 +1,11 @@
 package com.aniket.mirror.upload.service.impl;
 
 
+import com.aniket.mirror.events.FileUploadEvent;
 import com.aniket.mirror.upload.constants.enums.FileUploadStatus;
 import com.aniket.mirror.upload.dto.CompleteUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadResponse;
-import com.aniket.mirror.upload.dto.kafka.FileUploadEvent;
 import com.aniket.mirror.upload.entity.FileMetadata;
 import com.aniket.mirror.upload.repository.FileMetaDataRepository;
 import com.aniket.mirror.upload.service.KafkaProducerService;
@@ -85,16 +85,16 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
     FileMetadata meta = fileMetaDataRepository.findById(fileId)
         .orElseThrow(() -> new IllegalArgumentException("Invalid fileId"));
 
-    // 1️⃣ Idempotency
-    if (meta.getStatus() == FileUploadStatus.UPLOADED) {
-      return; // already completed
-    }
+    // 1️⃣ Idempotency Commented out for testing
+//    if (meta.getStatus() == FileUploadStatus.UPLOADED) {
+//      return; // already completed
+//    }
 
-    // 2️⃣ Only PENDING allowed
-    if (meta.getStatus() != FileUploadStatus.PENDING) {
-      throw new IllegalStateException(
-          "Cannot complete upload in state: " + meta.getStatus());
-    }
+//    // 2️⃣ Only PENDING allowed
+//    if (meta.getStatus() != FileUploadStatus.PENDING) {
+//      throw new IllegalStateException(
+//          "Cannot complete upload in state: " + meta.getStatus());
+//    }
 
     // 3️⃣ Verify object exists in S3
     HeadObjectResponse head;

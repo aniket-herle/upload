@@ -30,6 +30,10 @@ configurations.all {
 }
 
 dependencies {
+
+	//kafka events shared library
+	implementation 'com.aniket.mirror:mirror-events:1.0.0-SNAPSHOT'
+
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 

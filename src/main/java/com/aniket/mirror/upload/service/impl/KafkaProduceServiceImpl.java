@@ -1,7 +1,7 @@
 package com.aniket.mirror.upload.service.impl;
 
 
-import com.aniket.mirror.upload.dto.kafka.FileUploadEvent;
+import com.aniket.mirror.events.FileUploadEvent;
 import com.aniket.mirror.upload.service.KafkaProducerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;

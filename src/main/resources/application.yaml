@@ -1,11 +1,12 @@
 spring:
   application:
     name: S3 Upload Service
+
   datasource:
-    driver-class-name: com.mysql.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/file-mirror-upload
-    username: root
-    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:mysql://localhost:3306/file-mirror-upload}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
 
   jpa:
     show-sql: true
@@ -15,11 +16,13 @@ spring:
 
   kafka:
     producer:
-      bootstrap-servers: localhost:9092
+      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
       acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       retries: 3
+      properties:
+        spring.json.add.type.headers: false
 
   jackson:
     use-jackson2-defaults: true
@@ -27,10 +30,9 @@ spring:
 server:
   servlet:
     context-path: /api
-  port: 8081
-
+  port: ${SERVER_PORT:8081}
 
 aws:
   s3:
-    bucket: amzn-file-mirror-bucket
-  region: ap-south-1
+    bucket: ${S3_BUCKET:amzn-file-mirror-bucket}
+  region: ${AWS_REGION:ap-south-1}
