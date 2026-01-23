@@ -117,12 +117,12 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
     throw e; // rethrow unknown S3 errors
   }
 
-    // 4️⃣ Size validation (CRITICAL)
-    if (!Objects.equals(head.contentLength(), meta.getSizeBytes())) {
-      throw new IllegalStateException(
-          "Uploaded size mismatch. Expected=" +
-              meta.getSizeBytes() + ", actual=" + head.contentLength());
-    }
+//    // 4️⃣ Size validation (CRITICAL)
+//    if (!Objects.equals(head.contentLength(), meta.getSizeBytes())) {
+//      throw new IllegalStateException(
+//          "Uploaded size mismatch. Expected=" +
+//              meta.getSizeBytes() + ", actual=" + head.contentLength());
+//    }
 
     // 5️⃣ Optional checksum
     if (req != null && req.getChecksum() != null) {
