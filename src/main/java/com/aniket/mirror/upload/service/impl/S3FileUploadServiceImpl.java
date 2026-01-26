@@ -1,6 +1,11 @@
 package com.aniket.mirror.upload.service.impl;
 
 
+import com.aniket.mirror.common.exception.BadRequestException;
+import com.aniket.mirror.common.exception.ConflictException;
+import com.aniket.mirror.common.exception.ForbiddenException;
+import com.aniket.mirror.common.exception.InternalServerException;
+import com.aniket.mirror.common.exception.NotFoundException;
 import com.aniket.mirror.events.FileUploadEvent;
 import com.aniket.mirror.upload.constants.enums.FileUploadStatus;
 import com.aniket.mirror.upload.dto.CompleteUploadRequest;
@@ -16,6 +21,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -27,6 +33,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class S3FileUploadServiceImpl implements S3FileUploadService {
@@ -43,6 +50,17 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
   private String bucket;
 
   public CreateUploadResponse createUpload(CreateUploadRequest req) {
+    log.info("Creating upload for file: {}", req.getFileName());
+
+    if (req.getFileName() == null || req.getFileName().trim().isEmpty()) {
+      throw new BadRequestException("File name is required");
+    }
+    if (req.getContentType() == null || req.getContentType().trim().isEmpty()) {
+      throw new BadRequestException("Content type is required");
+    }
+    if (req.getSizeBytes() == null || req.getSizeBytes() <= 0) {
+      throw new BadRequestException("Valid file size is required");
+    }
 
     String id = UUID.randomUUID().toString();
     String key = "uploads/" + id + "_" + req.getFileName();
@@ -59,6 +77,7 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
     meta.setCreatedAt(Instant.now());
 
     fileMetaDataRepository.save(meta);
+    log.info("Metadata saved for upload, fileId: {}", id);
 
   PutObjectRequest putObjectRequest = PutObjectRequest.builder()
         .bucket(bucket)
@@ -72,6 +91,7 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
             .putObjectRequest(putObjectRequest)
         );
 
+    log.info("Presigned URL generated for upload, fileId: {}", id);
 
     CreateUploadResponse res = new CreateUploadResponse();
     res.setFileId(meta.getId());
@@ -81,20 +101,23 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
   }
 
   public void completeUpload(String fileId, CompleteUploadRequest req) {
+    log.info("Completing upload for fileId: {}", fileId);
+
+    if (fileId == null || fileId.trim().isEmpty()) {
+      throw new BadRequestException("File ID is required");
+    }
 
     FileMetadata meta = fileMetaDataRepository.findById(fileId)
-        .orElseThrow(() -> new IllegalArgumentException("Invalid fileId"));
+        .orElseThrow(() -> new NotFoundException("Upload not found for fileId: " + fileId));
 
-    // 1️⃣ Idempotency Commented out for testing
-//    if (meta.getStatus() == FileUploadStatus.UPLOADED) {
-//      return; // already completed
-//    }
+    if (meta.getStatus() == FileUploadStatus.UPLOADED) {
+      log.warn("Upload already completed for fileId: {}", fileId);
+      return; // already completed
+    }
 
-//    // 2️⃣ Only PENDING allowed
-//    if (meta.getStatus() != FileUploadStatus.PENDING) {
-//      throw new IllegalStateException(
-//          "Cannot complete upload in state: " + meta.getStatus());
-//    }
+    if (meta.getStatus() != FileUploadStatus.PENDING) {
+      throw new ConflictException("Cannot complete upload in state: " + meta.getStatus());
+    }
 
     // 3️⃣ Verify object exists in S3
     HeadObjectResponse head;
@@ -106,30 +129,28 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
               .build()
       );
     } catch (NoSuchKeyException e) {
-      throw new IllegalStateException("File not found in S3");
+      throw new NotFoundException("File not found in S3");
     } catch (S3Exception e) {
 
     if (e.statusCode() == 403) {
       // Access denied
-      throw new RuntimeException("You do not have permission to access this file/the file doesn't exist", e);
+      throw new ForbiddenException("You do not have permission to access this file");
     }
 
-    throw e; // rethrow unknown S3 errors
+    throw new InternalServerException("S3 error occurred", e);
   }
 
-//    // 4️⃣ Size validation (CRITICAL)
-//    if (!Objects.equals(head.contentLength(), meta.getSizeBytes())) {
-//      throw new IllegalStateException(
-//          "Uploaded size mismatch. Expected=" +
-//              meta.getSizeBytes() + ", actual=" + head.contentLength());
-//    }
+    // 4️⃣ Size validation (CRITICAL)
+    if (!Objects.equals(head.contentLength(), meta.getSizeBytes())) {
+      throw new ConflictException("Uploaded size mismatch. Expected=" + meta.getSizeBytes() + ", actual=" + head.contentLength());
+    }
 
     // 5️⃣ Optional checksum
     if (req != null && req.getChecksum() != null) {
       if(req.getChecksum().equals(meta.getChecksum())) {
         meta.setChecksum(head.checksumSHA256());
       }else{
-        throw new IllegalStateException("Checksum mismatch");
+        throw new ConflictException("Checksum mismatch");
       }
     }else{
       meta.setChecksum(head.checksumSHA256());
@@ -140,9 +161,11 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
     meta.setS3Url("s3://" + meta.getS3Bucket() + "/" + meta.getS3Key());
 
     fileMetaDataRepository.save(meta);
+    log.info("Upload completed and metadata updated for fileId: {}", fileId);
 
     FileUploadEvent fileUploadEvent = FileUploadUtil.getFileUploadEvent(meta);
     kafkaProducerService.sendFileUploadEvent(fileUploadEvent);
+    log.info("File upload event sent to Kafka for fileId: {}", fileId);
   }
 
 }
