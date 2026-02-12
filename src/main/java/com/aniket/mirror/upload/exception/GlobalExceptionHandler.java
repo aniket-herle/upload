@@ -1,14 +1,11 @@
 package com.aniket.mirror.upload.exception;
-
-import com.aniket.mirror.common.ApiErrorResponse;
-import com.aniket.mirror.common.ValidationError;
-import com.aniket.mirror.common.exception.AppException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.http.ProblemDetail;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -31,199 +29,151 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(AppException.class)
-    public ResponseEntity<ApiErrorResponse> handleAppException(AppException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleAppException(AppException ex, HttpServletRequest request) {
         HttpStatus status = ex.getStatus();
-        String traceId = MDC.get("traceId");
-        List<ValidationError> details = null;
 
         if (status.is4xxClientError()) {
-            log.warn("Client error: {} - {}", ex.getErrorCode(), ex.getMessage());
+            log.warn("Client error | code={} | message={}", ex.getErrorCode(), ex.getMessage());
         } else {
-            log.error("Server error: {} - {}", ex.getErrorCode(), ex.getMessage(), ex);
+            log.error("Server error | code={} | message={}", ex.getErrorCode(), ex.getMessage(), ex);
         }
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI(),
-                traceId,
-                ex.getErrorCode().name(),
-                details
-        );
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        problem.setTitle(status.getReasonPhrase());
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ex.getErrorCode().name());
 
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiErrorResponse> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleValidationException(MethodArgumentNotValidException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        String traceId = MDC.get("traceId");
-        List<ValidationError> details = new ArrayList<>();
 
+        List<ValidationError> errors = new ArrayList<>();
         for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            details.add(new ValidationError(error.getField(), error.getDefaultMessage()));
+            errors.add(new ValidationError(error.getField(), error.getDefaultMessage()));
         }
 
-        log.warn("Validation error: {}", ex.getMessage());
+        log.warn("Validation failed | errors={} | path={}", errors.size(), request.getRequestURI());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Validation failed",
-                request.getRequestURI(),
-                traceId,
-                "INVALID_INPUT",
-                details
-        );
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Validation failed");
+        problem.setTitle("Validation failed");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.INVALID_INPUT.name());
+        problem.setProperty("errors", errors);
 
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        String traceId = MDC.get("traceId");
-        List<ValidationError> details = new ArrayList<>();
+        List<ValidationError> errors = new ArrayList<>();
 
         Set<ConstraintViolation<?>> violations = ex.getConstraintViolations();
         for (ConstraintViolation<?> violation : violations) {
             String field = violation.getPropertyPath().toString();
-            details.add(new ValidationError(field, violation.getMessage()));
+            errors.add(new ValidationError(field, violation.getMessage()));
         }
 
-        log.warn("Constraint violation: {}", ex.getMessage());
+        log.warn("Constraint violation | errors={} | path={}", errors.size(), request.getRequestURI());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Constraint violation",
-                request.getRequestURI(),
-                traceId,
-                "INVALID_INPUT",
-                details
-        );
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Constraint violation");
+        problem.setTitle("Constraint violation");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.INVALID_INPUT.name());
+        problem.setProperty("errors", errors);
 
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<ApiErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleHttpMessageNotReadable(HttpMessageNotReadableException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        String traceId = MDC.get("traceId");
+        log.warn("Malformed request body | path={} | reason={}", request.getRequestURI(), ex.getMessage());
 
-        log.warn("Malformed request: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Malformed request body");
+        problem.setTitle("Malformed request body");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.INVALID_INPUT.name());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Malformed request body",
-                request.getRequestURI(),
-                traceId,
-                "INVALID_INPUT",
-                null
-        );
-
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<ApiErrorResponse> handleMissingParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleMissingParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        String traceId = MDC.get("traceId");
+        log.warn("Missing request parameter | path={} | reason={}", request.getRequestURI(), ex.getMessage());
 
-        log.warn("Missing parameter: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        problem.setTitle("Missing request parameter");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.INVALID_INPUT.name());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                ex.getMessage(),
-                request.getRequestURI(),
-                traceId,
-                "INVALID_INPUT",
-                null
-        );
-
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        String traceId = MDC.get("traceId");
+        log.warn("Type mismatch | path={} | reason={}", request.getRequestURI(), ex.getMessage());
 
-        log.warn("Type mismatch: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Invalid parameter type");
+        problem.setTitle("Invalid parameter type");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.INVALID_INPUT.name());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Invalid parameter type",
-                request.getRequestURI(),
-                traceId,
-                "INVALID_INPUT",
-                null
-        );
-
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.CONFLICT;
-        String traceId = MDC.get("traceId");
+        log.warn("Data integrity violation | path={} | reason={}", request.getRequestURI(), ex.getMessage());
 
-        log.warn("Data integrity violation: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Data integrity violation");
+        problem.setTitle("Conflict");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.CONFLICT.name());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Data integrity violation",
-                request.getRequestURI(),
-                traceId,
-                "CONFLICT",
-                null
-        );
-
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
-    public ResponseEntity<ApiErrorResponse> handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.NOT_FOUND;
-        String traceId = MDC.get("traceId");
+        log.warn("No handler found | path={}", request.getRequestURI());
 
-        log.warn("No handler found: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Resource not found");
+        problem.setTitle("Not Found");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.RESOURCE_NOT_FOUND.name());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Resource not found",
-                request.getRequestURI(),
-                traceId,
-                "RESOURCE_NOT_FOUND",
-                null
-        );
-
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleGenericException(Exception ex, HttpServletRequest request) {
         HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
-        String traceId = MDC.get("traceId");
+        log.error("Unexpected error | path={} | message={}", request.getRequestURI(), ex.getMessage(), ex);
 
-        log.error("Unexpected error: {}", ex.getMessage(), ex);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, "Internal server error");
+        problem.setTitle("Internal server error");
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("traceId", MDC.get("traceId"));
+        problem.setProperty("errorCode", ErrorCode.INTERNAL_ERROR.name());
 
-        ApiErrorResponse response = new ApiErrorResponse(
-                status.value(),
-                status.getReasonPhrase(),
-                "Internal server error",
-                request.getRequestURI(),
-                traceId,
-                "INTERNAL_ERROR",
-                null
-        );
-
-        return new ResponseEntity<>(response, status);
+        return ResponseEntity.status(status).body(problem);
     }
+
+    public record ValidationError(String field, String message) {}
 }

@@ -4,6 +4,7 @@ import com.aniket.mirror.upload.dto.CompleteUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadResponse;
 import com.aniket.mirror.upload.service.S3FileUploadService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -23,9 +24,9 @@ public class S3UploadController {
 
 
     @PostMapping("/init-upload")
-    CreateUploadResponse initUpload(@RequestBody CreateUploadRequest req) {
+    public ResponseEntity<CreateUploadResponse> initUpload(@Valid @RequestBody CreateUploadRequest req) {
         log.info("Initializing upload for file: {}", req.getFileName());
-        return s3FileUploadService.createUpload(req);
+        return ResponseEntity.ok(s3FileUploadService.createUpload(req));
     }
 
     @PostMapping("/{fileId}/complete-upload")

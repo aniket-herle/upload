@@ -11,7 +11,7 @@ spring:
   jpa:
     show-sql: true
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     database-platform: org.hibernate.dialect.MySQLDialect
 
   kafka:
@@ -36,3 +36,7 @@ aws:
   s3:
     bucket: ${S3_BUCKET:amzn-file-mirror-bucket}
   region: ${AWS_REGION:ap-south-1}
+
+mirror:
+  kafka:
+    file-upload-topic: file_upload

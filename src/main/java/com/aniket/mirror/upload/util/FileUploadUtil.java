@@ -1,24 +1,24 @@
 package com.aniket.mirror.upload.util;
 
 import com.aniket.mirror.events.FileUploadEvent;
-import com.aniket.mirror.upload.entity.FileMetadata;
+import com.aniket.mirror.upload.entity.FileRecord;
 import java.util.UUID;
 
 public class FileUploadUtil {
 
 
-  public static FileUploadEvent getFileUploadEvent(FileMetadata meta) {
+  public static FileUploadEvent getFileUploadEvent(FileRecord file) {
     return new FileUploadEvent(
         UUID.randomUUID().toString(),     // eventId
-        meta.getId(),           // fileId
-        meta.getFileName(),     // fileName
-        meta.getContentType(),  // contentType
-        meta.getSizeBytes(),    // sizeBytes (long)
-        meta.getS3Bucket(),     // s3Bucket
-        meta.getS3Key(),        // s3Key
-        meta.getS3Url(),        // s3Url
-        meta.getChecksum(),     // checksum
-        meta.getCreatedAt(),    // createdAt (Instant)
+        file.getFileId(),       // fileId
+        file.getFileName(),     // fileName
+        file.getContentType(),  // contentType
+        file.getSizeBytes(),    // sizeBytes (long)
+        file.getS3Bucket(),     // s3Bucket
+        file.getS3Key(),        // s3Key
+        file.getS3Url(),        // s3Url
+        file.getChecksum(),     // checksum
+        file.getCreatedAt(),    // createdAt (Instant)
         1   // version (int)
     );
 
