@@ -1,6 +1,7 @@
 package com.aniket.mirror.upload.service.impl;
 
 
+import com.aniket.mirror.events.FileMirrorCheckEvent;
 import com.aniket.mirror.events.FileUploadEvent;
 import com.aniket.mirror.upload.config.properties.MirrorKafkaProperties;
 import com.aniket.mirror.upload.service.KafkaProducerService;
@@ -18,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class KafkaProduceServiceImpl implements KafkaProducerService {
 
-    private final KafkaTemplate<String, FileUploadEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
   private final MirrorKafkaProperties kafkaProperties;
 
@@ -28,7 +29,7 @@ public class KafkaProduceServiceImpl implements KafkaProducerService {
       if (topic == null || topic.isBlank()) {
         throw new IllegalStateException("mirror.kafka.file-upload-topic is required");
       }
-      ProducerRecord<String, FileUploadEvent> record =
+      ProducerRecord<String, Object> record =
           new ProducerRecord<>(topic, fileUploadEvent.getFileId(), fileUploadEvent);
 
       String traceId = MDC.get("traceId");
@@ -40,5 +41,15 @@ public class KafkaProduceServiceImpl implements KafkaProducerService {
       }
 
       kafkaTemplate.send(record);
+    }
+
+    @Override
+    public void sendFileMirrorCheckEvent(FileMirrorCheckEvent event) {
+        log.info("Sending file mirror check event to Kafka for fileId: {}, provider: {}", event.getFileId(), event.getProviderName());
+        String topic = kafkaProperties.getFileMirrorCheckTopic();
+        if (topic == null || topic.isBlank()) {
+            throw new IllegalStateException("mirror.kafka.file-mirror-check-topic is required");
+        }
+        kafkaTemplate.send(topic, event.getFileId(), event);
     }
 }

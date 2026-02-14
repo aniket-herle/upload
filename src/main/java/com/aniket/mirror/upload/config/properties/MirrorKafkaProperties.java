@@ -12,4 +12,6 @@ public class MirrorKafkaProperties {
   /** Topic name for emitting FileUploadEvent messages. */
   private String fileUploadTopic;
 
+  private String fileMirrorCheckTopic;
+
 }
