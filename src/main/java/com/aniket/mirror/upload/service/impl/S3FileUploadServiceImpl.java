@@ -9,9 +9,7 @@ import com.aniket.mirror.upload.dto.CompleteUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadResponse;
 import com.aniket.mirror.upload.entity.FileRecord;
-import com.aniket.mirror.upload.entity.FileUpload;
 import com.aniket.mirror.upload.repository.FileRecordRepository;
-import com.aniket.mirror.upload.repository.FileUploadRepository;
 import com.aniket.mirror.upload.service.KafkaProducerService;
 import com.aniket.mirror.upload.service.S3FileUploadService;
 import com.aniket.mirror.upload.util.FileUploadUtil;
@@ -42,8 +40,6 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
 
   private final FileRecordRepository fileRecordRepository;
 
-  private final FileUploadRepository fileUploadRepository;
-
   private final KafkaProducerService kafkaProducerService;
 
   @Value("${aws.s3.bucket}")
@@ -55,7 +51,7 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
     String id = UUID.randomUUID().toString();
     String key = "uploads/" + id + "_" + req.getFileName();
 
-    // Persist normalized model: immutable file metadata + lifecycle state
+    // Persist normalized model: metadata + lifecycle state
     FileRecord file = FileRecord.builder()
       .fileId(id)
       .fileName(req.getFileName())
@@ -63,15 +59,10 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
       .sizeBytes(req.getSizeBytes())
       .s3Bucket(bucket)
       .s3Key(key)
+      .status(FileUploadStatus.PENDING)
       .build();
 
     fileRecordRepository.save(file);
-    fileUploadRepository.save(
-      FileUpload.builder()
-        .file(file)
-        .status(FileUploadStatus.PENDING)
-        .build()
-    );
 
     log.info("File metadata and upload state saved, fileId: {}", id);
 
@@ -103,19 +94,17 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
       throw new ClientException(ErrorCode.INVALID_INPUT, "File ID is required");
     }
 
-    FileUpload upload = fileUploadRepository.findById(fileId)
-        .orElseThrow(() -> new ClientException(ErrorCode.RESOURCE_NOT_FOUND, "Upload not found for fileId: " + fileId));
+    FileRecord file = fileRecordRepository.findById(fileId)
+        .orElseThrow(() -> new ClientException(ErrorCode.RESOURCE_NOT_FOUND, "File not found for fileId: " + fileId));
 
-    if (upload.getStatus() == FileUploadStatus.UPLOADED) {
+    if (file.getStatus() == FileUploadStatus.UPLOADED) {
       log.warn("Upload already completed for fileId: {}", fileId);
       return; // already completed
     }
 
-    if (upload.getStatus() != FileUploadStatus.PENDING) {
-      throw new ClientException(ErrorCode.CONFLICT, "Cannot complete upload in state: " + upload.getStatus());
+    if (file.getStatus() != FileUploadStatus.PENDING) {
+      throw new ClientException(ErrorCode.CONFLICT, "Cannot complete upload in state: " + file.getStatus());
     }
-
-    FileRecord file = upload.getFile();
 
     // 3️⃣ Verify object exists in S3
     HeadObjectResponse head;
@@ -155,11 +144,10 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
     }
 
     // 6️⃣ Finalize
-    upload.setStatus(FileUploadStatus.UPLOADED);
+    file.setStatus(FileUploadStatus.UPLOADED);
     file.setS3Url("s3://" + file.getS3Bucket() + "/" + file.getS3Key());
 
     fileRecordRepository.save(file);
-    fileUploadRepository.save(upload);
     log.info("Upload completed and state updated for fileId: {}", fileId);
 
     FileUploadEvent fileUploadEvent = FileUploadUtil.getFileUploadEvent(file);

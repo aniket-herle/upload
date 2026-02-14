@@ -1,7 +1,10 @@
 package com.aniket.mirror.upload.entity;
 
+import com.aniket.mirror.upload.constants.enums.FileUploadStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -21,7 +24,8 @@ import org.hibernate.annotations.UpdateTimestamp;
         @UniqueConstraint(name = "uq_files_s3", columnNames = {"s3_bucket", "s3_key"})
     },
     indexes = {
-        @Index(name = "idx_files_created_at", columnList = "created_at")
+        @Index(name = "idx_files_created_at", columnList = "created_at"),
+        @Index(name = "idx_files_status", columnList = "status")
     }
 )
 @Data
@@ -51,6 +55,10 @@ public class FileRecord {
 
   @Column(name = "s3_url", columnDefinition = "TEXT")
   private String s3Url;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false)
+  private FileUploadStatus status;
 
   @Column(name = "checksum")
   private String checksum;

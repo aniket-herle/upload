@@ -2,9 +2,12 @@ package com.aniket.mirror.upload.service.impl;
 
 import com.aniket.mirror.events.FileMirrorCheckEvent;
 import com.aniket.mirror.events.FileMirroredEvent;
+import com.aniket.mirror.upload.dto.FileDetailsResponse;
 import com.aniket.mirror.upload.dto.FileMirrorResponse;
 import com.aniket.mirror.upload.entity.FileMirror;
 import com.aniket.mirror.upload.entity.FileRecord;
+import com.aniket.mirror.upload.exception.ClientException;
+import com.aniket.mirror.upload.exception.ErrorCode;
 import com.aniket.mirror.upload.repository.FileMirrorRepository;
 import com.aniket.mirror.upload.repository.FileRecordRepository;
 import com.aniket.mirror.upload.service.FileMirrorService;
@@ -28,9 +31,13 @@ public class FileMirrorServiceImpl implements FileMirrorService {
     private final KafkaProducerService kafkaProducerService;
 
     @Override
-    public List<FileMirrorResponse> getFileMirrors(String fileId) {
-        log.info("Fetching mirrors for fileId: {}", fileId);
-        return fileMirrorRepository.findByFile_FileId(fileId).stream()
+    public FileDetailsResponse getFileDetailsWithMirrors(String fileId) {
+        log.info("Fetching file details and mirrors for fileId: {}", fileId);
+        
+        FileRecord file = fileRecordRepository.findById(fileId)
+            .orElseThrow(() -> new ClientException(ErrorCode.RESOURCE_NOT_FOUND, "File not found with id: " + fileId));
+
+        List<FileMirrorResponse> mirrors = fileMirrorRepository.findByFile_FileId(fileId).stream()
             .map(m -> FileMirrorResponse.builder()
                 .providerName(m.getProviderName())
                 .status(m.getStatus())
@@ -39,6 +46,18 @@ public class FileMirrorServiceImpl implements FileMirrorService {
                 .mirroredAt(m.getMirroredAt())
                 .build())
             .collect(Collectors.toList());
+
+        return FileDetailsResponse.builder()
+            .fileId(file.getFileId())
+            .fileName(file.getFileName())
+            .contentType(file.getContentType())
+            .sizeBytes(file.getSizeBytes())
+            .status(file.getStatus())
+            .checksum(file.getChecksum())
+            .createdAt(file.getCreatedAt())
+            .updatedAt(file.getUpdatedAt())
+            .mirrors(mirrors)
+            .build();
     }
 
     @Override

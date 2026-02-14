@@ -1,5 +1,6 @@
 package com.aniket.mirror.upload.controller;
 
+import com.aniket.mirror.upload.dto.FileDetailsResponse;
 import com.aniket.mirror.upload.dto.FileMirrorResponse;
 import com.aniket.mirror.upload.service.FileMirrorService;
 import java.util.List;
@@ -21,10 +22,14 @@ public class FileMirrorController {
     private final FileMirrorService fileMirrorService;
 
     @GetMapping("/{fileId}/mirrors")
-    public ResponseEntity<List<FileMirrorResponse>> getMirrors(@PathVariable String fileId) {
+    public ResponseEntity<FileDetailsResponse> getMirrors(@PathVariable String fileId) {
         log.info("Fetching mirrors for fileId: {}", fileId);
-        return ResponseEntity.ok(fileMirrorService.getFileMirrors(fileId));
+        return ResponseEntity.ok(fileMirrorService.getFileDetailsWithMirrors(fileId));
     }
+
+
+
+
 
     @PostMapping("/{fileId}/mirrors/{providerName}/report-failure")
     public ResponseEntity<Void> reportFailure(
