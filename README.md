@@ -690,44 +690,7 @@ curl http://localhost:8081/api/files/a1b2c3d4-e5f6-7890-abcd-ef1234567890/mirror
 
 ---
 
-## 🧪 Testing
 
-Run the test suite:
-
-```bash
-./gradlew test
-```
-
-The project includes:
-- Unit tests for service layer
-- Integration tests with H2 database
-- Kafka integration tests with embedded Kafka
-
----
-
-## 📝 License
-
-This project is part of the Multi Mirror Project by Aniket Herle.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📧 Contact
-
-For questions or support, please contact the development team.
-
----
 
 ## 🎯 Future Enhancements
 
