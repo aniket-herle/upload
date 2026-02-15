@@ -9,6 +9,7 @@ import com.aniket.mirror.upload.dto.CompleteUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadRequest;
 import com.aniket.mirror.upload.dto.CreateUploadResponse;
 import com.aniket.mirror.upload.entity.FileRecord;
+import com.aniket.mirror.upload.entity.User;
 import com.aniket.mirror.upload.repository.FileRecordRepository;
 import com.aniket.mirror.upload.service.KafkaProducerService;
 import com.aniket.mirror.upload.service.S3FileUploadService;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -48,6 +50,8 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
   public CreateUploadResponse createUpload(CreateUploadRequest req) {
     log.info("Creating upload for file: {}", req.getFileName());
 
+    User user = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
     String id = UUID.randomUUID().toString();
     String key = "uploads/" + id + "_" + req.getFileName();
 
@@ -60,6 +64,7 @@ public class S3FileUploadServiceImpl implements S3FileUploadService {
       .s3Bucket(bucket)
       .s3Key(key)
       .status(FileUploadStatus.PENDING)
+      .user(user)
       .build();
 
     fileRecordRepository.save(file);

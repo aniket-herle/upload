@@ -6,6 +6,7 @@ import com.aniket.mirror.upload.dto.FileDetailsResponse;
 import com.aniket.mirror.upload.dto.FileMirrorResponse;
 import com.aniket.mirror.upload.entity.FileMirror;
 import com.aniket.mirror.upload.entity.FileRecord;
+import com.aniket.mirror.upload.entity.User;
 import com.aniket.mirror.upload.exception.ClientException;
 import com.aniket.mirror.upload.exception.ErrorCode;
 import com.aniket.mirror.upload.repository.FileMirrorRepository;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,8 +36,14 @@ public class FileMirrorServiceImpl implements FileMirrorService {
     public FileDetailsResponse getFileDetailsWithMirrors(String fileId) {
         log.info("Fetching file details and mirrors for fileId: {}", fileId);
         
+        User user = (User) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
         FileRecord file = fileRecordRepository.findById(fileId)
             .orElseThrow(() -> new ClientException(ErrorCode.RESOURCE_NOT_FOUND, "File not found with id: " + fileId));
+
+        if (file.getUser() != null && !file.getUser().getId().equals(user.getId())) {
+             throw new ClientException(ErrorCode.FORBIDDEN, "You are not authorized to access this file");
+        }
 
         List<FileMirrorResponse> mirrors = fileMirrorRepository.findByFile_FileId(fileId).stream()
             .map(m -> FileMirrorResponse.builder()
